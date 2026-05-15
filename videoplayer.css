@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>For You</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #000;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .slot {
+    position: absolute;
+    left: 0; width: 100%;
+    background: #000;
+  }
+
+  .slot video {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  /* Top bar */
+  #topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: center;
+    padding-top: max(env(safe-area-inset-top, 0px), 14px);
+    padding-bottom: 14px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+    pointer-events: none;
+  }
+
+  .tab-row { display: flex; gap: 24px; align-items: center; }
+  .tab { font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.5); }
+  .tab.active { font-size: 16px; font-weight: 700; color: #fff; position: relative; }
+  .tab.active::after {
+    content: ''; position: absolute;
+    bottom: -5px; left: 50%; transform: translateX(-50%);
+    width: 18px; height: 2.5px; background: #fff; border-radius: 2px;
+  }
+
+  /* Right actions */
+  #actions {
+    position: fixed; right: 10px; z-index: 30;
+    bottom: calc(max(env(safe-area-inset-bottom, 0px), 12px) + 58px);
+    display: flex; flex-direction: column; align-items: center; gap: 22px;
+    pointer-events: none;
+  }
+
+  .action-btn { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+
+  .aicon {
+    width: 46px; height: 46px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .aicon svg { filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+  .alabel { font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+  #avatar-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 2px; }
+  #avatar-circle {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+  #follow-plus {
+    width: 20px; height: 20px; background: #fe2c55; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: -10px; position: relative; z-index: 1;
+    font-size: 14px; font-weight: 700; color: #fff; line-height: 1;
+  }
+
+  #disc {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 8px solid #444; background: #1a1a1a;
+    display: flex; align-items: center; justify-content: center;
+    animation: spin 4s linear infinite;
+  }
+  #disc-inner { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Bottom info */
+  #info {
+    position: fixed; bottom: 0; left: 0; right: 66px; z-index: 30;
+    padding: 60px 14px calc(max(env(safe-area-inset-bottom, 0px), 12px) + 62px);
+    background: linear-gradient(to top, rgba(0,0,0,0.75), transparent);
+    pointer-events: none;
+  }
+
+  #username-row {
+    font-size: 15px; font-weight: 700; color: #fff;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 5px;
+    text-shadow: 0 1px 5px rgba(0,0,0,0.6);
+  }
+  #verified-badge {
+    width: 16px; height: 16px; background: #20a0ff; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  #caption-text {
+    font-size: 13px; color: #fff; line-height: 1.45; margin-bottom: 6px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  #hashtag-text {
+    font-size: 13px; font-weight: 600; color: #fff;
+    margin-bottom: 10px; text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+  #sound-row { display: flex; align-items: center; gap: 6px; }
+  #sound-text {
+    font-size: 12px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+  }
+
+  /* Bottom nav */
+  #bottomnav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: space-around;
+    padding-top: 10px;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+    background: rgba(0,0,0,0.9);
+    border-top: 0.5px solid rgba(255,255,255,0.08);
+  }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 52px; }
+  .nav-icon svg { width: 25px; height: 25px; display: block; }
+  .nav-lbl { font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.45); letter-spacing: 0.02em; }
+  .nav-item.on .nav-lbl { color: #fff; }
+
+  .plus-pill {
+    display: flex; align-items: center; justify-content: center;
+    background: #fff; border-radius: 8px;
+    width: 44px; height: 28px; position: relative;
+  }
+  .plus-pill::before {
+    content: ''; position: absolute; left: -5px; top: 0; bottom: 0;
+    width: 8px; border-radius: 4px 0 0 4px; background: #69c9d0;
+  }
+  .plus-pill::after {
+    content: ''; position: absolute; right: -5px; top: 0; bottom: 0;
+    width: 8px; border-radius: 0 4px 4px 0; background: #ee1d52;
+  }
+  .plus-pill span { font-size: 18px; font-weight: 700; color: #000; z-index: 1; }
+
+  /* Boot screen */
+  #boot {
+    position: fixed; inset: 0; z-index: 100;
+    background: #000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    transition: opacity 0.4s;
+  }
+  #boot.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2.5px solid rgba(255,255,255,0.15);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .boot-lbl { font-size: 12px; color: rgba(255,255,255,0.35); letter-spacing: 0.08em; }
+
+  /* Unmute hint */
+  #unmute-hint {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    z-index: 40;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 99px; padding: 8px 16px;
+    font-size: 12px; color: #fff; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  #unmute-hint.show { opacity: 1; pointer-events: auto; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div class="spinner"></div>
+  <div class="boot-lbl">loading</div>
+</div>
+
+<div id="unmute-hint">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+  </svg>
+  Tap to unmute
+</div>
+
+<div id="stage">
+  <div class="slot" id="slot-a"><video id="vid-a" playsinline></video></div>
+  <div class="slot" id="slot-b"><video id="vid-b" playsinline></video></div>
+</div>
+
+<div id="topbar">
+  <div class="tab-row">
+    <span class="tab">Following</span>
+    <span class="tab active">For You</span>
+  </div>
+</div>
+
+<div id="actions">
+  <div id="avatar-wrap">
+    <div id="avatar-circle">A</div>
+    <div id="follow-plus">+</div>
+  </div>
+  <div class="action-btn">
+    <div class="aicon">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="white">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    </div>
+    <span class="alabel" id="like-count">0</span>
+  </div>
+  <div class="action-btn">
+    <div class="aicon">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="white">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    </div>
+    <span class="alabel" id="comment-count">0</span>
+  </div>
+  <div class="action-btn">
+    <div class="aicon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+    </div>
+    <span class="alabel" id="save-count">0</span>
+  </div>
+  <div class="action-btn">
+    <div class="aicon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+        <polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <span class="alabel" id="share-count">0</span>
+  </div>
+  <div class="action-btn" style="margin-top:2px;">
+    <div id="disc"><div id="disc-inner"></div></div>
+  </div>
+</div>
+
+<div id="info">
+  <div id="username-row">
+    <span id="uname">@username</span>
+    <span id="verified-badge" style="display:none;">
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="2,5 4,7 8,3"/>
+      </svg>
+    </span>
+  </div>
+  <div id="caption-text"></div>
+  <div id="hashtag-text"></div>
+  <div id="sound-row">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+    </svg>
+    <span id="sound-text"></span>
+  </div>
+</div>
+
+<div id="bottomnav">
+  <div class="nav-item on">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="white">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22" fill="none" stroke="white" stroke-width="1.8"/>
+      </svg>
+    </div>
+    <span class="nav-lbl" style="color:#fff;">Home</span>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </div>
+    <span class="nav-lbl">Discover</span>
+  </div>
+  <div class="nav-item">
+    <div class="plus-pill"><span>+</span></div>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    </div>
+    <span class="nav-lbl">LIVE</span>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.45)">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <span class="nav-lbl">Profile</span>
+  </div>
+</div>
+
+<script>
+const VIDEO_URLS = [
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661666/Timeline_1_z5ibbb.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661665/tiktoks00000000_rve2sx.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661666/tiktoks00000091_wcittu.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661665/tiktoks00000202_wje0s7.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661665/copy_6D260300-0BF3-4C3E-9652-A260FC2EEA18_f3pplv.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661662/copy_F2A5D161-D8FA-4AB8-B43D-C238628F989F_vsluds.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661661/copy_985A6379-50D5-4158-9732-2814DD6ECAEA_wxoq6l.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661661/copy_C3B4DFE6-71BE-4C76-A7F1-3752FAF71746_dcchke.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661661/copy_34858035-2E3C-4D0C-ADEB-01F91C60FD17_jgiojr.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661661/v10_hp1x1f.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661660/v9_renddu.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661660/v7_ocmrj9.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661659/v8_ppgeol.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661659/v3_jfft9z.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661659/v6_tnzixk.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661659/v5_yaunwr.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661658/v2_ojmtkq.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661658/v1_gym_cj8wio.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661656/hammer_fya8pi.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661656/jawline_ihauts.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661655/Ekrano_%C4%AFra%C5%A1ymas_2026-05-11_153728_wiw5jb.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661655/copy_EE945E44-04B3-46F0-82A8-821B04B19FC4_depcbb.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661653/admaker-6119_fidp3f.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661652/202605121610_1_x4srtg.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661652/copy_9BD46A4A-C3B0-4757-941A-509F8E23E27C_lqiny0.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661652/202605121610_2_lueqkf.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661651/202605111452_xglpep.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778661651/202605110919-2_c5hdoc.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778788859/ad_zmrlfb.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778788862/reminder_zwjrkg.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778788908/sexy_pseiw9.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778788913/gym_mrj1fz.mp4",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778789126/two_n6uihf.mov",
+  "https://res.cloudinary.com/dnb2aswj4/video/upload/v1778789132/one_m1xmio.mov"
+];
+
+const NAMES = [
+  "glowwithkaia","thatgirlroutine_","nikolettafit","sofiaslims","celiaskincare",
+  "leanandlit","purebody.petra","minimalwellness","kcal.karolina","bodybylena",
+  "ivanalifts","gymchef.zara","skinnytipsss","pilateswithmia","cleangirlmorning",
+  "lunalifts_","aminasklabs","ruthieeats","contour.by.cleo","yourclearskingirl",
+  "facecarewithfreja","notdietingdiet","irenaglow","brows.by.nadia","wellnesswithwilla",
+  "thegutgirl_","macrosbymarta","fitwithfiona","glossgirlgabriela","coreworkouts.co"
+];
+const CAPTIONS = [
+  "morning routine that actually changed my skin 🫧",
+  "what i eat in a day (high protein, low cal) ✨",
+  "the only contour tutorial you'll ever need",
+  "5am routine that keeps me consistent 🌙",
+  "gut health glow up — week 4 update",
+  "body recomp progress — honest update 🩵",
+  "the eyeliner trick that took me 3 years to find",
+  "slow morning, fast results ☕",
+  "dropped 8kg doing THIS instead of cardio",
+  "collagen routine morning + night (i'm obsessed)",
+  "functional breakfast under 350 kcal 🍳",
+  "the supplement stack that actually works",
+  "glazed donut skin — all drugstore products",
+  "fitness girl grocery haul 💚",
+  "pilates body transformation — 90 days honest",
+  "face slimming tricks makeup artists use",
+  "my trainer told me to stop doing this 🚨",
+  "the cleanse that reset my whole system",
+  "brow lamination at home — step by step",
+  "clean eating isn't boring i promise 🥗",
+  "protein pancakes that taste like dessert",
+  "everything i do for my skin before an event",
+  "posture correction routine — life changing",
+  "lymphatic drainage massage i do every morning",
+  "what i eat when i'm bloated 🫙",
+  "the jawline exercise that actually works",
+  "natty bulk meal prep — under 2000 kcal",
+  "this is what consistency looks like 💪"
+];
+const TAGS = [
+  ["#thatgirl","#morningroutine","#glowup"],
+  ["#whatieatinaday","#highprotein","#weightloss"],
+  ["#makeuptutorial","#contouring","#grwm"],
+  ["#fitness","#pilates","#bodytransformation"],
+  ["#skincare","#clearskin","#glasskin"],
+  ["#gymgirl","#lifts","#gymchef"],
+  ["#wellness","#cleangirl","#selfcare"],
+  ["#fatloss","#caloriedeficit","#leanout"],
+  ["#beauty","#brows","#makeup"],
+  ["#guthealth","#collagen","#healthylifestyle"],
+  ["#thatgirlera","#morningmotivation","#routine"],
+  ["#jawline","#facegym","#looksmaxxing"],
+  ["#mealprep","#gymchef","#highprotein"]
+];
+const SOUNDS = [
+  "original sound · glowwithkaia",
+  "espresso - sabrina carpenter",
+  "original sound · thatgirlroutine_",
+  "diet pepsi - addison rae",
+  "cool about it - boygenius",
+  "original sound · gymchef.zara",
+  "feather - sabrina carpenter",
+  "original sound · lunalifts_",
+  "the lakes - taylor swift",
+  "original sound · nikolettafit",
+  "birds of a feather - billie eilish",
+  "original sound · pilateswithmia",
+  "lunch - billie eilish",
+  "original sound · irenaglow"
+];
+const COLORS = ["#fe2c55","#7c3aed","#0ea5e9","#f59e0b","#10b981","#ec4899","#f97316","#06b6d4"];
+
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const ri   = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const fmt  = n => n >= 1e6 ? (n/1e6).toFixed(1).replace('.0','') + 'M'
+                : n >= 1e3 ? (n/1e3).toFixed(1).replace('.0','') + 'K'
+                : String(n);
+
+function shuffle(a) {
+  const b = [...a];
+  for (let i = b.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [b[i], b[j]] = [b[j], b[i]];
+  }
+  return b;
+}
+
+function randomMeta() {
+  return {
+    name: pick(NAMES), verified: Math.random() < 0.33,
+    caption: pick(CAPTIONS), tags: pick(TAGS),
+    sound: pick(SOUNDS), color: pick(COLORS),
+    likes: ri(1200, 890000), comments: ri(80, 32000),
+    saves: ri(200, 58000), shares: ri(30, 14000)
+  };
+}
+
+function applyMeta(m) {
+  document.getElementById('uname').textContent = '@' + m.name;
+  document.getElementById('verified-badge').style.display = m.verified ? 'inline-flex' : 'none';
+  document.getElementById('caption-text').textContent = m.caption;
+  document.getElementById('hashtag-text').textContent = m.tags.join(' ');
+  document.getElementById('sound-text').textContent = m.sound;
+  document.getElementById('like-count').textContent = fmt(m.likes);
+  document.getElementById('comment-count').textContent = fmt(m.comments);
+  document.getElementById('save-count').textContent = fmt(m.saves);
+  document.getElementById('share-count').textContent = fmt(m.shares);
+  const av = document.getElementById('avatar-circle');
+  av.style.background = m.color;
+  av.textContent = m.name[0].toUpperCase();
+}
+
+// ── Player ────────────────────────────────────────────────────────────────────
+//
+// Two slots: slot-a (top: 0, playing) and slot-b (top: H, preloading).
+// To advance: animate stage up by H → in transitionend swap slots back to
+// original positions and reset stage transform to 0. No flash, no DOM rebuild.
+//
+// Key fixes vs previous version:
+//  • Videos switch on 'ended' event, not a fixed timer — no freeze waiting for timer
+//  • waitReady has a 8s timeout fallback so it never hangs forever (black screen fix)
+//  • nxt.muted always mirrors isMuted at play time, not hardcoded true
+//  • queueIdx tracked correctly from the start
+//  • advance() is re-entrant safe with a single isAnimating flag
+//  • loadNext() called immediately after swap so preload has maximum time
+
+const H     = window.innerHeight;
+const stage = document.getElementById('stage');
+const slotA = document.getElementById('slot-a');
+const slotB = document.getElementById('slot-b');
+const vidA  = document.getElementById('vid-a');
+const vidB  = document.getElementById('vid-b');
+const boot  = document.getElementById('boot');
+const hint  = document.getElementById('unmute-hint');
+
+// Size slots explicitly — iOS can misread 100% height before first paint
+slotA.style.height = H + 'px';
+slotB.style.height = H + 'px';
+slotB.style.top    = H + 'px';
+
+let queue       = shuffle(VIDEO_URLS);
+let queueIdx    = 0;   // index of the video CURRENTLY playing in slot-a
+let isAnimating = false;
+let isMuted     = true; // muted until first user tap (Safari autoplay policy)
+
+// cur = element playing in slot-a; nxt = element preloading in slot-b
+let cur = vidA;
+let nxt = vidB;
+
+// Wait until a video has enough data to play, with a timeout fallback
+function waitReady(video) {
+  return new Promise(resolve => {
+    if (video.readyState >= 3) { resolve(); return; }
+    const done = () => { clearTimeout(t); resolve(); };
+    const t = setTimeout(done, 8000); // give up waiting after 8s and advance anyway
+    video.addEventListener('canplay', done, { once: true });
+  });
+}
+
+function loadVideo(video, url) {
+  video.src = url;
+  video.muted = true; // always load muted; mute state applied at play time
+  video.load();
+}
+
+function playVideo(video) {
+  video.muted = isMuted;
+  return video.play().catch(() => {
+    // If unmuted play is blocked, fall back to muted
+    video.muted = true;
+    return video.play().catch(() => {});
+  });
+}
+
+async function advance() {
+  if (isAnimating) return;
+  isAnimating = true;
+
+  // Wait for next video to be buffered (with timeout so we never hang)
+  await waitReady(nxt);
+
+  // Animate stage upward — reveal slot-b
+  stage.style.transition = 'transform 0.4s cubic-bezier(0.32, 0, 0.18, 1)';
+  stage.style.transform  = `translateY(${-H}px)`;
+
+  // Use setTimeout as fallback if transitionend never fires (rare iOS bug)
+  let settled = false;
+  const onSettle = () => {
+    if (settled) return;
+    settled = true;
+
+    // Stop outgoing video cleanly
+    cur.pause();
+    cur.currentTime = 0;
+    cur.removeAttribute('src');
+    cur.load(); // release memory
+
+    // Swap logical roles
+    [cur, nxt] = [nxt, cur];
+
+    // Physically reposition slots — cur back to top, nxt below
+    cur.parentElement.style.top = '0px';
+    nxt.parentElement.style.top = H + 'px';
+
+    // Snap stage back to zero with no animation
+    stage.style.transition = 'none';
+    stage.style.transform  = 'translateY(0)';
+
+    // Play incoming video
+    playVideo(cur);
+    applyMeta(randomMeta());
+
+    // Advance index and immediately start preloading the one after next
+    queueIdx = (queueIdx + 1) % queue.length;
+    loadVideo(nxt, queue[(queueIdx + 1) % queue.length]);
+
+    isAnimating = false;
+  };
+
+  stage.addEventListener('transitionend', onSettle, { once: true });
+  setTimeout(onSettle, 500); // fallback: 500ms > transition duration
+}
+
+// On video end, advance immediately — no freeze
+function onVideoEnded() { advance(); }
+vidA.addEventListener('ended', onVideoEnded);
+vidB.addEventListener('ended', onVideoEnded);
+
+// First tap: unmute. Subsequent taps: skip to next video.
+stage.addEventListener('click', () => {
+  if (isMuted) {
+    isMuted = false;
+    cur.muted = false;
+    hint.classList.remove('show');
+  } else {
+    advance();
+  }
+});
+
+hint.addEventListener('click', e => {
+  e.stopPropagation();
+  isMuted = false;
+  cur.muted = false;
+  hint.classList.remove('show');
+});
+
+async function init() {
+  // Load first two videos simultaneously
+  loadVideo(cur, queue[0]);
+  loadVideo(nxt, queue[1] ?? queue[0]);
+
+  // Wait for the first one to be playable
+  await waitReady(cur);
+
+  boot.classList.add('hidden');
+  await playVideo(cur);
+  applyMeta(randomMeta());
+
+  // Show unmute nudge
+  hint.classList.add('show');
+  setTimeout(() => hint.classList.remove('show'), 4000);
+}
+
+init();
+</script>
+</body>
+</html>
